@@ -9,9 +9,8 @@ import asyncio
 
 TOKEN = os.getenv("TOKEN")
 LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID", "0"))
-TICKET_CATEGORY_ID = int(os.getenv("TICKET_CATEGORY_ID", "0"))  # ID категории с тикетами
+TICKET_CATEGORY_ID = int(os.getenv("TICKET_CATEGORY_ID", "0"))
 
-# --- Текст панели ---
 PANEL_TEXT = (
     "**Курсы конвертации:**\n"
     "Меньше 1.999 ₽ — 2.000 $\n"
@@ -21,8 +20,6 @@ PANEL_TEXT = (
     "От 10.000 ₽ и выше — 4.500 $\n\n"
     "Нажмите кнопку ниже, чтобы ввести сумму и конвертировать."
 )
-
-# --- Функции конвертации и форматирования ---
 
 def round_to_tens(number: int) -> int:
     remainder = number % 10
@@ -53,8 +50,6 @@ def format_with_dots(number) -> str:
     if isinstance(number, float) and number.is_integer():
         number = int(number)
     return f"{number:,}".replace(",", ".")
-
-# --- Модал конвертации ---
 
 class ConvertModal(ui.Modal, title="Конвертация"):
     amount = ui.TextInput(label="Сумма (₽)", placeholder="Введите число")
@@ -97,8 +92,6 @@ class ConvertModal(ui.Modal, title="Конвертация"):
         except ValueError:
             await interaction.response.send_message("Ошибка: введите корректное число!", ephemeral=True)
 
-# --- Кнопка и вью ---
-
 class ConvertButton(ui.Button):
     def __init__(self):
         super().__init__(label="Конвертировать", style=discord.ButtonStyle.primary, custom_id="convert_btn")
@@ -128,8 +121,6 @@ class RatesView(ui.View):
         self.add_item(ConvertButton())
         self.add_item(AdditionalButton())
 
-# --- Discord Bot Setup ---
-
 intents = discord.Intents.default()
 intents.message_content = True
 intents.guilds = True
@@ -153,14 +144,13 @@ async def on_guild_channel_create(channel):
         isinstance(channel, discord.TextChannel)
         and channel.category_id == TICKET_CATEGORY_ID
     ):
-        await asyncio.sleep(1)  # Ждём, чтобы TicketTool успел отправить своё сообщение
+        await asyncio.sleep(1)
         try:
             await channel.send(PANEL_TEXT, view=RatesView())
         except Exception as e:
             print(f"Ошибка при отправке панели в канал {channel.name}: {e}")
 
-# --- Webserver для Replit ---
-
+# Веб-сервер для Render (обязательно слушать на порт из переменной окружения PORT)
 async def handle(request):
     return web.Response(text="Бот работает!")
 
@@ -169,12 +159,10 @@ async def run_webserver():
     app.add_routes([web.get('/', handle)])
     runner = web.AppRunner(app)
     await runner.setup()
-    port = int(os.environ.get("PORT", 8081))
+    port = int(os.environ.get("PORT", 8000))  # <- здесь 8000 или любое число по умолчанию, но Render задаст PORT
+    print(f"Запуск веб-сервера на порту {port}")
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
-    print(f"Веб-сервер запущен на порту {port}")
-
-# --- Основная точка входа ---
 
 async def main():
     await run_webserver()
