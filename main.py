@@ -17,77 +17,70 @@ PANEL_TEXT = (
     "От 2.000 ₽ до 3.999 ₽ — 2.500 $\n"
     "От 4.000 ₽ до 5.999 ₽ — 3.000 $\n"
     "От 6.000 ₽ до 9.999 ₽ — 3.500 $\n"
-    "От 10.000 ₽ и выше — 4.500 $\n\n"
+    "От 10.000 ₽ и выше — 4.500 $\\n\n"
     "Нажмите кнопку ниже, чтобы ввести сумму и конвертировать."
 )
 
-def round_to_tens(number: int) -> int:
-    remainder = number % 10
-    if remainder == 0:
-        return number
-    if remainder >= 5:
-        return number + (10 - remainder)
-    else:
-        return number - remainder
+def round_to_tens(n: int) -> int:
+    rem = n % 10
+    return n if rem == 0 else (n + 10 - rem if rem >= 5 else n - rem)
 
 def adjust_amount(amount: float) -> int:
-    amount_int = math.ceil(amount)
-    return round_to_tens(amount_int)
+    return round_to_tens(math.ceil(amount))
 
 def get_rate(amount: int) -> int:
     if amount < 1999:
         return 2000
-    elif amount < 4000:
+    if amount < 4000:
         return 2500
-    elif amount < 6000:
+    if amount < 6000:
         return 3000
-    elif amount < 10000:
+    if amount < 10000:
         return 3500
-    else:
-        return 4500
+    return 4500
 
-def format_with_dots(number) -> str:
-    if isinstance(number, float) and number.is_integer():
-        number = int(number)
-    return f"{number:,}".replace(",", ".")
+def format_with_dots(num) -> str:
+    # Поддержка int и float, убирает .0 для целых
+    if isinstance(num, float) and num.is_integer():
+        num = int(num)
+    return f"{num:,}".replace(",", ".")
 
 class ConvertModal(ui.Modal, title="Конвертация"):
     amount = ui.TextInput(label="Сумма (₽)", placeholder="Введите число")
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
-            raw_amount = float(self.amount.value)
-            adjusted_amount = adjust_amount(raw_amount)
-            rate = get_rate(adjusted_amount)
-            result = adjusted_amount * rate
+            raw = float(self.amount.value)
+            adj = adjust_amount(raw)
+            rate = get_rate(adj)
+            result = adj * rate
             commission = int(result * 0.01)
             total = result + commission
 
-            raw_amount_clean = int(raw_amount) if raw_amount.is_integer() else raw_amount
+            raw_display = int(raw) if raw.is_integer() else raw
 
-            embed_user = discord.Embed(title="Итог конвертации:", color=0x2ecc71)
-            embed_user.add_field(name="Сумма (₽)", value=f"{format_with_dots(raw_amount_clean)}₽", inline=False)
-            embed_user.add_field(name="Округлено (₽)", value=f"{format_with_dots(adjusted_amount)}₽", inline=False)
-            embed_user.add_field(name="Курс ($)", value=f"{format_with_dots(rate)}$", inline=False)
-            embed_user.add_field(name="Результат ($ | ʊ)", value=f"{format_with_dots(result)}$", inline=False)
-            embed_user.add_field(name="Комиссия 1% ($)", value=f"{format_with_dots(commission)}$", inline=False)
-            embed_user.add_field(name="**Итоговая сумма ($)**", value=f"**{format_with_dots(total)}$**", inline=False)
-            await interaction.response.send_message(embed=embed_user, ephemeral=True)
+            embed = discord.Embed(title="Итог конвертации:", color=0x2ecc71)
+            embed.add_field(name="Сумма (₽)", value=f"{format_with_dots(raw_display)}₽", inline=False)
+            embed.add_field(name="Округлено (₽)", value=f"{format_with_dots(adj)}₽", inline=False)
+            embed.add_field(name="Курс ($)", value=f"{format_with_dots(rate)}$", inline=False)
+            embed.add_field(name="Результат ($)", value=f"{format_with_dots(result)}$", inline=False)
+            embed.add_field(name="Комиссия 1% ($)", value=f"{format_with_dots(commission)}$", inline=False)
+            embed.add_field(name="Итог ($)", value=f"**{format_with_dots(total)}$**", inline=False)
+
+            await interaction.response.send_message(embed=embed, ephemeral=True)
 
             log_channel = interaction.guild.get_channel(LOG_CHANNEL_ID)
             if log_channel:
-                embed_log = discord.Embed(title="Лог конвертации:", color=0x3498db)
-                timestamp = datetime.now(tz=timezone.utc)
-                embed_log.add_field(name="Пользователь", value=str(interaction.user), inline=False)
-                embed_log.timestamp = timestamp
-                embed_log.add_field(name="Канал", value=interaction.channel.mention, inline=False)
-                embed_log.add_field(name="Сумма (₽)", value=f"{format_with_dots(raw_amount_clean)}₽", inline=True)
-                embed_log.add_field(name="Округлено (₽)", value=f"{format_with_dots(adjusted_amount)}₽", inline=True)
-                embed_log.add_field(name="Курс ($)", value=f"{format_with_dots(rate)}$", inline=True)
-                embed_log.add_field(name="Результат ($ | ʊ)", value=f"{format_with_dots(result)}$", inline=True)
-                embed_log.add_field(name="Комиссия 1% ($)", value=f"{format_with_dots(commission)}$", inline=True)
-                embed_log.add_field(name="Итоговая сумма ($)", value=f"{format_with_dots(total)}$", inline=True)
-                await log_channel.send(embed=embed_log)
+                log_embed = discord.Embed(title="Лог конвертации", color=0x3498db, timestamp=datetime.now(tz=timezone.utc))
+                log_embed.add_field(name="Пользователь", value=str(interaction.user), inline=False)
+                log_embed.add_field(name="Канал", value=interaction.channel.mention, inline=False)
+                log_embed.add_field(name="Сумма (₽)", value=f"{format_with_dots(raw_display)}₽", inline=True)
+                log_embed.add_field(name="Округлено (₽)", value=f"{format_with_dots(adj)}₽", inline=True)
+                log_embed.add_field(name="Курс ($)", value=f"{format_with_dots(rate)}$", inline=True)
+                log_embed.add_field(name="Результат ($)", value=f"{format_with_dots(result)}$", inline=True)
+                log_embed.add_field(name="Комиссия 1% ($)", value=f"{format_with_dots(commission)}$", inline=True)
+                log_embed.add_field(name="Итог ($)", value=f"{format_with_dots(total)}$", inline=True)
+                await log_channel.send(embed=log_embed)
 
         except ValueError:
             await interaction.response.send_message("Ошибка: введите корректное число!", ephemeral=True)
@@ -104,7 +97,7 @@ class AdditionalButton(ui.Button):
         super().__init__(label="Дополнительно", style=discord.ButtonStyle.secondary, custom_id="additional_btn")
 
     async def callback(self, interaction: discord.Interaction):
-        additional_text = (
+        additional = (
             "```"
             "Другое :\n\n"
             "Приоритетная очередь в тикете -> 300.000$ (Меньше 1.500 рублей), 700.000$ (Больше 1.500 рублей)\n"
@@ -113,7 +106,7 @@ class AdditionalButton(ui.Button):
             "Разбан в дискорде RPM -> цену узнавать у justlead"
             "```"
         )
-        await interaction.response.send_message(additional_text, ephemeral=True)
+        await interaction.response.send_message(additional, ephemeral=True)
 
 class RatesView(ui.View):
     def __init__(self):
@@ -136,37 +129,32 @@ async def panelz(ctx):
 @bot.event
 async def on_ready():
     bot.add_view(RatesView())
-    print(f"Бот {bot.user} запущен и готов к работе!")
+    print(f"Бот {bot.user} запущен!")
 
 @bot.event
 async def on_guild_channel_create(channel):
-    if (
-        isinstance(channel, discord.TextChannel)
-        and channel.category_id == TICKET_CATEGORY_ID
-    ):
+    if isinstance(channel, discord.TextChannel) and channel.category_id == TICKET_CATEGORY_ID:
         await asyncio.sleep(1)
         try:
             await channel.send(PANEL_TEXT, view=RatesView())
         except Exception as e:
-            print(f"Ошибка при отправке панели в канал {channel.name}: {e}")
+            print(f"Ошибка отправки панели в {channel.name}: {e}")
 
-# Веб-сервер для Render (обязательно слушать на порт из переменной окружения PORT)
 async def handle(request):
     return web.Response(text="Бот работает!")
 
 async def run_webserver():
     app = web.Application()
-    app.add_routes([web.get('/', handle)])
+    app.router.add_route('*', '/', handle)  # Принимаем все HTTP методы
     runner = web.AppRunner(app)
     await runner.setup()
-    port = int(os.environ.get("PORT", 8000))  # <- здесь 8000 или любое число по умолчанию, но Render задаст PORT
+    port = int(os.environ.get("PORT", 8000))
     print(f"Запуск веб-сервера на порту {port}")
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
 
 async def main():
-    await run_webserver()
-    await bot.start(TOKEN)
+    await asyncio.gather(run_webserver(), bot.start(TOKEN))
 
 if __name__ == "__main__":
     asyncio.run(main())
