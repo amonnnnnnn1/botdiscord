@@ -6,9 +6,13 @@ import math
 from datetime import datetime, timezone
 from aiohttp import web
 import asyncio
+from dotenv import load_dotenv  # добавлено
+
+# Загрузка переменных из .env
+load_dotenv()
 
 # Переменные окружения
-TOKEN = os.getenv("TOKEN")
+TOKEN = os.getenv("DISCORD_TOKEN")  # исправлено имя переменной
 LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID", "0"))
 TICKET_CATEGORY_ID = int(os.getenv("TICKET_CATEGORY_ID", "0"))
 
