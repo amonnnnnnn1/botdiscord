@@ -107,26 +107,19 @@ class RatesView(ui.View):
         self.add_item(ConvertButton())
         self.add_item(AdditionalButton())
 
-# Глобальный экземпляр панели
-rates_view = RatesView()
-
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 @bot.command(name="panelz")
 @commands.has_permissions(administrator=True)
 async def panelz(ctx):
-    await ctx.send(PANEL_TEXT, view=rates_view)
+    view = RatesView()
+    await ctx.send(PANEL_TEXT, view=view)
     await ctx.message.delete()
 
 @bot.event
 async def on_ready():
-    bot.loop.create_task(add_view_safe())
     print(f"✅ Бот {bot.user} запущен и готов к работе!")
-
-async def add_view_safe():
-    await bot.wait_until_ready()
-    bot.add_view(rates_view)
 
 @bot.event
 async def on_guild_channel_create(channel):
@@ -135,8 +128,9 @@ async def on_guild_channel_create(channel):
         try:
             async for msg in channel.history(limit=5):
                 if msg.author == bot.user and msg.content.startswith("**Курсы конвертации:**"):
-                    return  # панель уже отправлена
-            await channel.send(PANEL_TEXT, view=rates_view)
+                    return
+            view = RatesView()
+            await channel.send(PANEL_TEXT, view=view)
         except Exception as e:
             print(f"Ошибка при отправке панели: {e}")
 
