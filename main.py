@@ -6,17 +6,14 @@ import math
 from datetime import datetime, timezone
 from aiohttp import web
 import asyncio
-from dotenv import load_dotenv  # добавлено
+from dotenv import load_dotenv
 
-# Загрузка переменных из .env
 load_dotenv()
 
-# Переменные окружения
-TOKEN = os.getenv("DISCORD_TOKEN")  # исправлено имя переменной
+TOKEN = os.getenv("DISCORD_TOKEN")
 LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID", "0"))
 TICKET_CATEGORY_ID = int(os.getenv("TICKET_CATEGORY_ID", "0"))
 
-# Текст панели
 PANEL_TEXT = (
     "**Курсы конвертации:**\n"
     "Меньше 1.999 ₽ — 2.000 $\n"
@@ -27,7 +24,6 @@ PANEL_TEXT = (
     "Нажмите кнопку ниже, чтобы ввести сумму и конвертировать."
 )
 
-# Вспомогательные функции
 def round_to_tens(number: int) -> int:
     return number + (10 - number % 10) if number % 10 >= 5 else number - number % 10
 
@@ -46,7 +42,6 @@ def format_with_dots(number) -> str:
         number = int(number)
     return f"{number:,}".replace(",", ".")
 
-# Модальное окно
 class ConvertModal(ui.Modal, title="Конвертация"):
     amount = ui.TextInput(label="Сумма (₽)", placeholder="Введите число")
 
@@ -85,7 +80,6 @@ class ConvertModal(ui.Modal, title="Конвертация"):
         except ValueError:
             await interaction.response.send_message("Ошибка: введите корректное число!", ephemeral=True)
 
-# Кнопки
 class ConvertButton(ui.Button):
     def __init__(self):
         super().__init__(label="Конвертировать", style=discord.ButtonStyle.primary, custom_id="convert_btn")
@@ -113,31 +107,36 @@ class RatesView(ui.View):
         self.add_item(ConvertButton())
         self.add_item(AdditionalButton())
 
-# Intents
-intents = discord.Intents.all()
+# Глобальный экземпляр панели
+rates_view = RatesView()
 
+intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Панель вручную
 @bot.command(name="panelz")
 @commands.has_permissions(administrator=True)
 async def panelz(ctx):
-    await ctx.send(PANEL_TEXT, view=RatesView())
+    await ctx.send(PANEL_TEXT, view=rates_view)
     await ctx.message.delete()
 
-# При запуске
 @bot.event
 async def on_ready():
-    bot.add_view(RatesView())
+    bot.loop.create_task(add_view_safe())
     print(f"✅ Бот {bot.user} запущен и готов к работе!")
 
-# Панель при создании тикета
+async def add_view_safe():
+    await bot.wait_until_ready()
+    bot.add_view(rates_view)
+
 @bot.event
 async def on_guild_channel_create(channel):
     if isinstance(channel, discord.TextChannel) and channel.category_id == TICKET_CATEGORY_ID:
         await asyncio.sleep(1)
         try:
-            await channel.send(PANEL_TEXT, view=RatesView())
+            async for msg in channel.history(limit=5):
+                if msg.author == bot.user and msg.content.startswith("**Курсы конвертации:**"):
+                    return  # панель уже отправлена
+            await channel.send(PANEL_TEXT, view=rates_view)
         except Exception as e:
             print(f"Ошибка при отправке панели: {e}")
 
@@ -150,7 +149,7 @@ async def run_webserver():
     app.add_routes([web.get('/', handle)])
     runner = web.AppRunner(app)
     await runner.setup()
-    port = int(os.environ.get("PORT", 10000))  # Render сам задаёт PORT
+    port = int(os.environ.get("PORT", 10000))
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
     print(f"🌐 Веб-сервер слушает на порту {port}")
