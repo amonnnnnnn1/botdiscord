@@ -13,7 +13,6 @@ load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID", "0"))
 TICKET_CATEGORY_ID = int(os.getenv("TICKET_CATEGORY_ID", "0"))
-BLOCKED_ROLE_ID = 1347656051331174490
 
 PANEL_TEXT = (
     "**Курсы конвертации:**\n"
@@ -73,27 +72,39 @@ class ConvertModal(ui.Modal, title="Конвертация"):
             adjusted = adjust_amount(raw_amount)
             rate = get_rate(adjusted)
             result = adjusted * rate
-            commission1 = int(result * 0.01)
-            commission5 = int(result * 0.05)
-            total = result + commission1 + commission5
+            commission_1 = int(result * 0.01)
+            commission_5 = int(result * 0.05)
+            total = result + commission_1 + commission_5
             raw_clean = int(raw_amount) if raw_amount.is_integer() else raw_amount
 
             embed = discord.Embed(title="Итог конвертации:", color=0x2ecc71)
             embed.add_field(name="Сумма (₽)", value=f"{format_with_dots(raw_clean)}₽", inline=False)
             embed.add_field(name="Округлено (₽)", value=f"{format_with_dots(adjusted)}₽", inline=False)
             embed.add_field(name="Курс ($)", value=f"{format_with_dots(rate)}$", inline=False)
-            embed.add_field(name="Результат ($ | ʊ)", value=f"{format_with_dots(result)}$", inline=False)
-            embed.add_field(name="Комиссия 1% + 5% ($)", value=f"{format_with_dots(commission1)}$ + {format_with_dots(commission5)}$", inline=False)
+            embed.add_field(name="Результат ($)", value=f"{format_with_dots(result)}$", inline=False)
+            embed.add_field(name="Комиссия 1% + 5% ($)", value=f"{format_with_dots(commission_1)}$ + {format_with_dots(commission_5)}$", inline=False)
             embed.add_field(name="**Итоговая сумма ($)**", value=f"**{format_with_dots(total)}$**", inline=False)
             await interaction.response.send_message(embed=embed, ephemeral=True)
+
+            log_channel = interaction.guild.get_channel(LOG_CHANNEL_ID)
+            if log_channel:
+                log = discord.Embed(title="Лог конвертации", color=0x3498db, timestamp=datetime.now(timezone.utc))
+                log.add_field(name="Пользователь", value=str(interaction.user), inline=False)
+                log.add_field(name="Канал", value=interaction.channel.mention, inline=False)
+                log.add_field(name="Сумма (₽)", value=f"{format_with_dots(raw_clean)}₽", inline=True)
+                log.add_field(name="Итоговая сумма ($)", value=f"{format_with_dots(total)}$", inline=True)
+                await log_channel.send(embed=log)
 
         except ValueError:
             await interaction.response.send_message("Ошибка: введите корректное число!", ephemeral=True)
 
-class SellerConvertModal(ui.Modal, title="Конвертация для продавцов"):
+class SellerModal(ui.Modal, title="Конвертация для продавцов"):
     amount = ui.TextInput(label="Сумма (₽)", placeholder="Введите число")
 
     async def on_submit(self, interaction: discord.Interaction):
+        if not interaction.user.roles or any(role.id == 1347656051331174490 for role in interaction.user.roles):
+            return await interaction.response.send_message("У вас нет доступа к этой функции.", ephemeral=True)
+
         try:
             raw_amount = float(self.amount.value)
             adjusted = adjust_amount(raw_amount)
@@ -106,38 +117,42 @@ class SellerConvertModal(ui.Modal, title="Конвертация для прод
             embed.add_field(name="Сумма (₽)", value=f"{format_with_dots(raw_clean)}₽", inline=False)
             embed.add_field(name="Округлено (₽)", value=f"{format_with_dots(adjusted)}₽", inline=False)
             embed.add_field(name="Курс ($)", value=f"{format_with_dots(rate)}$", inline=False)
-            embed.add_field(name="Результат ($ | ʊ)", value=f"{format_with_dots(result)}$", inline=False)
-            embed.add_field(name="**Итоговая комиссия (10%)**", value=f"**{format_with_dots(commission_total)}$**", inline=False)
-            embed.add_field(
-                name="⠀",
-                value="**Присылать комиссию на счёт -> 142153**\nФотку отправленной комиссии отправьте в закрытый тикет",
-                inline=False
-            )
+            embed.add_field(name="Результат ($)", value=f"{format_with_dots(result)}$", inline=False)
+            embed.add_field(name="Итоговая комиссия (10%)", value=f"{format_with_dots(commission_total)}$", inline=False)
+            embed.add_field(name="**Присылать комиссию на счёт -> 142153**", value="**Фотку отправленной комиссии отправьте в закрытый тикет**", inline=False)
             await interaction.response.send_message(embed=embed, ephemeral=True)
+
+            log_channel = interaction.guild.get_channel(LOG_CHANNEL_ID)
+            if log_channel:
+                log = discord.Embed(title="Лог конвертации (продавцы)", color=0x7f8c8d, timestamp=datetime.now(timezone.utc))
+                log.add_field(name="Пользователь", value=str(interaction.user), inline=False)
+                log.add_field(name="Канал", value=interaction.channel.mention, inline=False)
+                log.add_field(name="Сумма (₽)", value=f"{format_with_dots(raw_clean)}₽", inline=True)
+                log.add_field(name="Комиссия (10%)", value=f"{format_with_dots(commission_total)}$", inline=True)
+                await log_channel.send(embed=log)
 
         except ValueError:
             await interaction.response.send_message("Ошибка: введите корректное число!", ephemeral=True)
 
 class ConvertButton(ui.Button):
     def __init__(self):
-        super().__init__(label="Конвертировать", style=discord.ButtonStyle.primary, custom_id="convert_btn")
+        super().__init__(label="Конвертировать", style=discord.ButtonStyle.primary)
 
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.send_modal(ConvertModal())
 
-class SellerConvertButton(ui.Button):
+class SellerButton(ui.Button):
     def __init__(self):
-        super().__init__(label="Конвертация для продавцов", style=discord.ButtonStyle.secondary, custom_id="seller_convert_btn")
+        super().__init__(label="Конвертация для продавцов", style=discord.ButtonStyle.secondary)
 
     async def callback(self, interaction: discord.Interaction):
-        if interaction.user.get_role(BLOCKED_ROLE_ID) or interaction.user.guild_permissions.administrator is False:
-            await interaction.response.send_message("У вас нет доступа к этой кнопке.", ephemeral=True)
-            return
-        await interaction.response.send_modal(SellerConvertModal())
+        if not interaction.user.roles or any(role.id == 1347656051331174490 for role in interaction.user.roles):
+            return await interaction.response.send_message("У вас нет доступа к этой функции.", ephemeral=True)
+        await interaction.response.send_modal(SellerModal())
 
 class AdditionalButton(ui.Button):
     def __init__(self):
-        super().__init__(label="Дополнительно", style=discord.ButtonStyle.secondary, custom_id="additional_btn")
+        super().__init__(label="Дополнительно", style=discord.ButtonStyle.secondary)
 
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.send_message(
@@ -153,7 +168,7 @@ class RatesView(ui.View):
     def __init__(self):
         super().__init__(timeout=None)
         self.add_item(ConvertButton())
-        self.add_item(SellerConvertButton())
+        self.add_item(SellerButton())
         self.add_item(AdditionalButton())
 
 intents = discord.Intents.all()
@@ -162,15 +177,13 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 @bot.command(name="panelz")
 @commands.has_permissions(administrator=True)
 async def panelz(ctx):
-    view = RatesView()
-    await ctx.send(PANEL_TEXT, view=view)
+    await ctx.send(PANEL_TEXT, view=RatesView())
     await ctx.message.delete()
 
 @bot.command(name="panelzz")
 @commands.has_permissions(administrator=True)
 async def panelzz(ctx):
-    view = RatesView()
-    await ctx.send(OLD_PANEL_TEXT, view=view)
+    await ctx.send(OLD_PANEL_TEXT, view=RatesView())
     await ctx.message.delete()
 
 @bot.event
@@ -186,8 +199,7 @@ async def on_guild_channel_create(channel):
             async for msg in channel.history(limit=5):
                 if msg.author == bot.user and msg.content.startswith("**Курсы конвертации:**"):
                     return
-            view = RatesView()
-            await channel.send(PANEL_TEXT, view=view)
+            await channel.send(PANEL_TEXT, view=RatesView())
         except Exception as e:
             print(f"Ошибка при отправке панели: {e}")
 
