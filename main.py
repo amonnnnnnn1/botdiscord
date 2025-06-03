@@ -5,7 +5,7 @@ import os
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 
-SELLER_ROLE_IDS = {
+ALLOWED_SELLER_ROLE_IDS = {
     1378693028415541363,
     1378774315683545180,
     1060540032944971936,
@@ -19,7 +19,9 @@ SELLER_ROLE_IDS = {
     1303338660183146496,
 }
 
-LOG_CHANNEL_ID = 123456789012345678  # сюда подставь ID твоего лог-канала
+FORBIDDEN_ROLE_ID = 1347656051331174490
+
+LOG_CHANNEL_ID = 123456789012345678  # Твой ID лог-канала
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -28,8 +30,10 @@ intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+
 def format_money(amount):
     return f"{amount:,.0f}$".replace(",", ".")
+
 
 class ConvertModal(ui.Modal, title="Конвертация"):
 
@@ -54,6 +58,7 @@ class ConvertModal(ui.Modal, title="Конвертация"):
 
         await interaction.response.send_message(text, ephemeral=True)
 
+
 class SellerConvertModal(ui.Modal, title="Конвертация для продавцов"):
 
     amount = ui.TextInput(label="Введите сумму (₽)", placeholder="Например: 200000")
@@ -66,7 +71,6 @@ class SellerConvertModal(ui.Modal, title="Конвертация для прод
             return
 
         commission_10 = amount * 0.10
-        total = amount + commission_10
 
         text = (
             f"**Итоговая комиссия (10%):** {format_money(commission_10)}\n\n"
@@ -74,10 +78,8 @@ class SellerConvertModal(ui.Modal, title="Конвертация для прод
             f"**Фотку отправленной комиссии отправьте в закрытый тикет**"
         )
 
-        # Отправляем в личку
         await interaction.response.send_message(text, ephemeral=True)
 
-        # Отправляем в лог-канал
         log_channel = bot.get_channel(LOG_CHANNEL_ID)
         if log_channel:
             await log_channel.send(
@@ -86,6 +88,7 @@ class SellerConvertModal(ui.Modal, title="Конвертация для прод
                 f"Комиссия (10%): {format_money(commission_10)}"
             )
 
+
 class ConvertButton(ui.Button):
     def __init__(self):
         super().__init__(label="Конвертировать", style=discord.ButtonStyle.green)
@@ -93,54 +96,61 @@ class ConvertButton(ui.Button):
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.send_modal(ConvertModal())
 
+
 class SellerConvertButton(ui.Button):
     def __init__(self):
-        super().__init__(label="Конвертация для продавцов", style=discord.ButtonStyle.secondary)
+        super().__init__(label="Конвертация для продавцов", style=discord.ButtonStyle.grey)
 
     async def callback(self, interaction: discord.Interaction):
         user_roles = {role.id for role in interaction.user.roles}
-        # Запрет для @everyone (нет ролей) и роли с ID 1347656051331174490
-        if not user_roles.intersection(SELLER_ROLE_IDS):
+
+        # Проверка доступа
+        has_allowed_role = len(user_roles.intersection(ALLOWED_SELLER_ROLE_IDS)) > 0
+        if not has_allowed_role or FORBIDDEN_ROLE_ID in user_roles or len(interaction.user.roles) == 1:
             await interaction.response.send_message("У вас нет доступа к этой кнопке.", ephemeral=True)
             return
-        if 1347656051331174490 in user_roles or len(interaction.user.roles) == 1:  # 1 — это @everyone
-            await interaction.response.send_message("У вас нет доступа к этой кнопке.", ephemeral=True)
-            return
+
         await interaction.response.send_modal(SellerConvertModal())
+
 
 class MoreButton(ui.Button):
     def __init__(self):
-        super().__init__(label="Дополнительно", style=discord.ButtonStyle.secondary)
+        super().__init__(label="Дополнительно", style=discord.ButtonStyle.grey)
 
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.send_message("Дополнительно пока нет.", ephemeral=True)
 
-class ConvertView(ui.View):
+
+class PanelView(ui.View):
     def __init__(self):
         super().__init__(timeout=None)
-        # порядок: Конвертировать, Конвертация для продавцов, Дополнительно
+        # Порядок кнопок: Конвертировать, Конвертация для продавцов, Дополнительно
         self.add_item(ConvertButton())
         self.add_item(SellerConvertButton())
         self.add_item(MoreButton())
 
-@bot.command(name="panelz")
+
+@bot.command()
 async def panelz(ctx):
+    # Панель без строки Комиссия: 1% + 5%
     await ctx.send(
-        "**Панель конвертации:**\n"
-        "Используйте кнопки ниже.",
-        view=ConvertView()
+        "**Панель конвертации:**",
+        view=PanelView()
     )
 
-@bot.command(name="panelzz")
+
+@bot.command()
 async def panelzz(ctx):
+    # Аналогично panelz, чтобы работала команда
     await ctx.send(
-        "**Панель конвертации расширенная:**\n"
-        "Используйте кнопки ниже.",
-        view=ConvertView()
+        "**Панель конвертации расширенная:**",
+        view=PanelView()
     )
+
 
 @bot.event
 async def on_ready():
-    print(f"Бот {bot.user} запущен и готов.")
+    print(f"Бот {bot.user} запущен!")
+
 
 bot.run(TOKEN)
