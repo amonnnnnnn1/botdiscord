@@ -4,6 +4,9 @@ from discord.ext import commands
 from datetime import datetime, timezone
 import math
 import os
+from dotenv import load_dotenv  # импортируем загрузчик .env
+
+load_dotenv()  # загружаем переменные окружения из .env
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID", "0"))
@@ -143,7 +146,6 @@ class ConvertButton(ui.Button):
 
 class SellerConvertButton(ui.Button):
     def __init__(self):
-        # стиль такой же как у Дополнительно - secondary (серый)
         super().__init__(label="Конвертация для продавцов", style=discord.ButtonStyle.secondary, custom_id="seller_convert_btn")
 
     async def callback(self, interaction: discord.Interaction):
@@ -170,7 +172,6 @@ class AdditionalButton(ui.Button):
 class RatesView(ui.View):
     def __init__(self):
         super().__init__(timeout=None)
-        # Порядок кнопок: Конвертировать, Конвертация для продавцов, Дополнительно
         self.add_item(ConvertButton())
         self.add_item(SellerConvertButton())
         self.add_item(AdditionalButton())
@@ -192,14 +193,23 @@ async def panelz(ctx):
         "> - Ссылка на профиль:\n"
         "> - Платёжная система:\n"
         "> - Сумма ($):\n"
-        "> - Копия платежа:\n\n"
+        "> - Копия платежа:\n"
+        "> - Ваш баланс:\n"
     )
     await ctx.send(panel_text, view=RatesView())
 
 @bot.command(name="panelzz")
 @commands.has_permissions(administrator=True)
 async def panelzz(ctx):
-    # Если надо, можно сделать другую версию панели, сейчас пока дублируем с panelz
-    await panelz(ctx)
+    panel_text = (
+        "**Конвертация для продавцов**\n"
+        "Итоговая комиссия 10%\n"
+        "Нажмите кнопку ниже, чтобы ввести сумму и получить конвертацию.\n"
+    )
+    await ctx.send(panel_text, view=RatesView())
+
+@bot.event
+async def on_ready():
+    print(f"Бот {bot.user} запущен и готов к работе!")
 
 bot.run(TOKEN)
