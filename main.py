@@ -4,9 +4,6 @@ from discord.ext import commands
 from datetime import datetime, timezone
 import math
 import os
-from dotenv import load_dotenv  # импортируем загрузчик .env
-
-load_dotenv()  # загружаем переменные окружения из .env
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID", "0"))
@@ -119,7 +116,6 @@ class SellerConvertModal(ui.Modal, title="Конвертация для прод
             embed.add_field(name="Курс ($)", value=f"{format_with_dots(rate)}$", inline=False)
             embed.add_field(name="Результат ($)", value=f"{format_with_dots(result)}$", inline=False)
             embed.add_field(name="Итоговая комиссия (10%)", value=f"{format_with_dots(commission_10)}$", inline=False)
-            embed.add_field(name="**Присылать комиссию на счёт -> 142153\nФотку отправленной комиссии отправьте в закрытый тикет**", value="\u200b", inline=False)
 
             await interaction.response.send_message(embed=embed, ephemeral=True)
 
@@ -146,6 +142,7 @@ class ConvertButton(ui.Button):
 
 class SellerConvertButton(ui.Button):
     def __init__(self):
+        # стиль такой же как у Дополнительно - secondary (серый)
         super().__init__(label="Конвертация для продавцов", style=discord.ButtonStyle.secondary, custom_id="seller_convert_btn")
 
     async def callback(self, interaction: discord.Interaction):
@@ -172,6 +169,7 @@ class AdditionalButton(ui.Button):
 class RatesView(ui.View):
     def __init__(self):
         super().__init__(timeout=None)
+        # Порядок кнопок: Конвертировать, Конвертация для продавцов, Дополнительно
         self.add_item(ConvertButton())
         self.add_item(SellerConvertButton())
         self.add_item(AdditionalButton())
@@ -179,13 +177,16 @@ class RatesView(ui.View):
 @bot.command(name="panelz")
 @commands.has_permissions(administrator=True)
 async def panelz(ctx):
+    # Удаляем команду пользователя сразу после вызова
+    await ctx.message.delete()
+
     panel_text = (
         "**Курсы конвертации:**\n"
-        "Меньше 1.999 ₽ - 2.000 $\n"
-        "От 2.000 ₽ до 3.999 ₽ - 2.500 $\n"
-        "От 4.000 ₽ до 5.999 ₽ - 3.000 $\n"
-        "От 6.000 ₽ до 9.999 ₽ - 3.500 $\n"
-        "От 10.000 ₽ и выше - 4.500 $\n\n"
+        "Меньше 1.999 ₽ — 2.000 $\n"
+        "От 2.000 ₽ до 3.999 ₽ — 2.500 $\n"
+        "От 4.000 ₽ до 5.999 ₽ — 3.000 $\n"
+        "От 6.000 ₽ до 9.999 ₽ — 3.500 $\n"
+        "От 10.000 ₽ и выше — 4.500 $\n\n"
         "Нажмите кнопку ниже, чтобы ввести сумму и конвертировать.\n\n"
         "> **ОФОРМЛЕНИЕ ЗАЯВКИ НА ПОКУПКУ ДОНАТА**\n"
         "> - Ваш ник:\n"
@@ -194,22 +195,24 @@ async def panelz(ctx):
         "> - Платёжная система:\n"
         "> - Сумма ($):\n"
         "> - Копия платежа:\n"
-        "> - Ваш баланс:\n"
     )
     await ctx.send(panel_text, view=RatesView())
 
 @bot.command(name="panelzz")
 @commands.has_permissions(administrator=True)
 async def panelzz(ctx):
+    # Удаляем команду пользователя сразу после вызова
+    await ctx.message.delete()
+
     panel_text = (
-        "**Конвертация для продавцов**\n"
-        "Итоговая комиссия 10%\n"
-        "Нажмите кнопку ниже, чтобы ввести сумму и получить конвертацию.\n"
+        "**Курсы конвертации:**\n"
+        "Меньше 1.999 ₽ — 2.000 $\n"
+        "От 2.000 ₽ до 3.999 ₽ — 2.500 $\n"
+        "От 4.000 ₽ до 5.999 ₽ — 3.000 $\n"
+        "От 6.000 ₽ до 9.999 ₽ — 3.500 $\n"
+        "От 10.000 ₽ и выше — 4.500 $\n\n"
+        "Нажмите кнопку ниже, чтобы ввести сумму и конвертировать."
     )
     await ctx.send(panel_text, view=RatesView())
-
-@bot.event
-async def on_ready():
-    print(f"Бот {bot.user} запущен и готов к работе!")
 
 bot.run(TOKEN)
