@@ -4,7 +4,6 @@ from discord.ext import commands
 import os
 import math
 from datetime import datetime, timezone
-import asyncio
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -26,13 +25,24 @@ SELLER_ROLE_IDS = {
     1303338660183146496,
 }
 
-PANEL_TEXT = (
+# Твои исходные тексты для панелей (без изменений)
+PANELZ_TEXT = (
     "**Курсы конвертации:**\n"
     "Меньше 1.999 ₽ - 2.000 $\n"
     "От 2.000 ₽ до 3.999 ₽ - 2.500 $\n"
     "От 4.000 ₽ до 5.999 ₽ - 3.000 $\n"
     "От 6.000 ₽ до 9.999 ₽ - 3.500 $\n"
-    "От 10.000 ₽ и выше - 4.500 $\\n\n"
+    "От 10.000 ₽ и выше - 4.500 $\n\n"
+    "Нажмите кнопку ниже, чтобы ввести сумму и конвертировать."
+)
+
+PANELZZ_TEXT = (
+    "**Курсы конвертации:**\n"
+    "Меньше 1.999 ₽ - 2.000 $\n"
+    "От 2.000 ₽ до 3.999 ₽ - 2.500 $\n"
+    "От 4.000 ₽ до 5.999 ₽ - 3.000 $\n"
+    "От 6.000 ₽ до 9.999 ₽ - 3.500 $\n"
+    "От 10.000 ₽ и выше - 4.500 $\n\n"
     "Нажмите кнопку ниже, чтобы ввести сумму и конвертировать.\n\n"
     "> **ОФОРМЛЕНИЕ ЗАЯВКИ НА ПОКУПКУ ДОНАТА**\n"
     "> - Ваш ник:\n"
@@ -45,16 +55,6 @@ PANEL_TEXT = (
     "@Продавец | RPM WEST - продают донаты только на сервере RPM WEST и только за валюту сервера RPM WEST.\n"
     "@Продавец | RPM NORTH - продают донаты только на сервере RPM NORTH и только за валюту сервера RPM NORTH.\n"
     "@Продавец | BH - продают донаты только на сервере BossHunt и только за валюту сервера BossHunt.```"
-)
-
-OLD_PANEL_TEXT = (
-    "**Курсы конвертации:**\n"
-    "Меньше 1.999 ₽ - 2.000 $\n"
-    "От 2.000 ₽ до 3.999 ₽ - 2.500 $\n"
-    "От 4.000 ₽ до 5.999 ₽ - 3.000 $\n"
-    "От 6.000 ₽ до 9.999 ₽ - 3.500 $\n"
-    "От 10.000 ₽ и выше - 4.500 $\n\n"
-    "Нажмите кнопку ниже, чтобы ввести сумму и конвертировать."
 )
 
 def round_to_tens(number: int) -> int:
@@ -162,6 +162,7 @@ class ConvertView(ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
+        # Порядок кнопок: Конвертировать, Конвертация для продавцов, Дополнительно
         self.add_item(ConvertButton())
         self.add_item(SellerConvertButton())
         self.add_item(MoreButton())
@@ -176,16 +177,14 @@ class ConvertButton(ui.Button):
 
 class SellerConvertButton(ui.Button):
     def __init__(self):
-        # Цвет такой же, как у кнопки Дополнительно (grey)
+        # Цвет такой же, как у кнопки "Дополнительно"
         super().__init__(label="Конвертация для продавцов", style=discord.ButtonStyle.secondary)
 
     async def callback(self, interaction: discord.Interaction):
         user_roles = {role.id for role in interaction.user.roles}
-        # Проверяем, есть ли у пользователя разрешённая роль
+        # Проверяем разрешённые роли
         if not user_roles.intersection(SELLER_ROLE_IDS):
-            await interaction.response.send_message(
-                "У вас нет доступа к этой конвертации.", ephemeral=True
-            )
+            await interaction.response.send_message("У вас нет доступа к этой конвертации.", ephemeral=True)
             return
         modal = SellerConvertModal()
         await interaction.response.send_modal(modal)
@@ -195,7 +194,7 @@ class MoreButton(ui.Button):
         super().__init__(label="Дополнительно", style=discord.ButtonStyle.secondary)
 
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.send_message("Дополнительные функции будут скоро!", ephemeral=True)
+        await interaction.response.send_message("Дополнительные функции скоро!", ephemeral=True)
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -209,8 +208,13 @@ async def on_ready():
     print(f"Бот {bot.user} готов к работе!")
 
 @bot.command(name="panelz")
-async def send_panelz(ctx):
-    embed = discord.Embed(title="Панель конвертации", description=OLD_PANEL_TEXT, color=0x3498db)
+async def panelz(ctx):
+    embed = discord.Embed(title="Панель конвертации", description=PANELZ_TEXT, color=0x3498db)
+    await ctx.send(embed=embed, view=ConvertView())
+
+@bot.command(name="panelzz")
+async def panelzz(ctx):
+    embed = discord.Embed(title="Панель конвертации (расширенная)", description=PANELZZ_TEXT, color=0x3498db)
     await ctx.send(embed=embed, view=ConvertView())
 
 bot.run(TOKEN)
