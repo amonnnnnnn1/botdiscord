@@ -4,46 +4,26 @@ from discord.ext import commands
 import os
 import math
 from datetime import datetime, timezone
-from aiohttp import web
-import asyncio
 from dotenv import load_dotenv
 
 load_dotenv()
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID", "0"))
-TICKET_CATEGORY_ID = int(os.getenv("TICKET_CATEGORY_ID", "0"))
 
-PANEL_TEXT = (
-    "**Курсы конвертации:**\n"
-    "Меньше 1.999 ₽ - 2.000 $\n"
-    "От 2.000 ₽ до 3.999 ₽ - 2.500 $\n"
-    "От 4.000 ₽ до 5.999 ₽ - 3.000 $\n"
-    "От 6.000 ₽ до 9.999 ₽ - 3.500 $\n"
-    "От 10.000 ₽ и выше - 4.500 $\n\n"
-    "Нажмите кнопку ниже, чтобы ввести сумму и конвертировать.\n\n"
-    "> **ОФОРМЛЕНИЕ ЗАЯВКИ НА ПОКУПКУ ДОНАТА**\n"
-    "> - Ваш ник:\n"
-    "> - Интересующий донат:\n"
-    "> - На каком сервере: (RPM WEST | RPM NORTH | BossHunt)\n"
-    "> - Вид валюты для оплаты: (Валюта RPM WEST | Валюта RPM NORTH | Валюта BH)\n"
-    "> - Пинг продавцов:\n\n"
-    "```Подсказка по пингам:\n"
-    "@Продавец | RPM WESNORT - продают донаты на всех серверах RPM и принимают все валюты серверов RPM.\n"
-    "@Продавец | RPM WEST - продают донаты только на сервере RPM WEST и только за валюту сервера RPM WEST.\n"
-    "@Продавец | RPM NORTH - продают донаты только на сервере RPM NORTH и только за валюту сервера RPM NORTH.\n"
-    "@Продавец | BH - продают донаты только на сервере BossHunt и только за валюту сервера BossHunt.```"
-)
-
-OLD_PANEL_TEXT = (
-    "**Курсы конвертации:**\n"
-    "Меньше 1.999 ₽ - 2.000 $\n"
-    "От 2.000 ₽ до 3.999 ₽ - 2.500 $\n"
-    "От 4.000 ₽ до 5.999 ₽ - 3.000 $\n"
-    "От 6.000 ₽ до 9.999 ₽ - 3.500 $\n"
-    "От 10.000 ₽ и выше - 4.500 $\n\n"
-    "Нажмите кнопку ниже, чтобы ввести сумму и конвертировать."
-)
+ALLOWED_SELLER_ROLE_IDS = {
+    1378693028415541363,
+    1378774315683545180,
+    1060540032944971936,
+    1240036406366306314,
+    1078988379171065856,
+    1378693416585658478,
+    1070069188581937202,
+    1347660316263321713,
+    1306688727179067523,
+    1377349570006224996,
+    1303338660183146496,
+}
 
 def round_to_tens(number: int) -> int:
     return number + (10 - number % 10) if number % 10 >= 5 else number - number % 10
@@ -84,51 +64,62 @@ class ConvertModal(ui.Modal, title="Конвертация"):
             embed.add_field(name="Результат ($)", value=f"{format_with_dots(result)}$", inline=False)
             embed.add_field(name="Комиссия 1% + 5% ($)", value=f"{format_with_dots(commission_1)}$ + {format_with_dots(commission_5)}$", inline=False)
             embed.add_field(name="**Итоговая сумма ($)**", value=f"**{format_with_dots(total)}$**", inline=False)
+
             await interaction.response.send_message(embed=embed, ephemeral=True)
 
             log_channel = interaction.guild.get_channel(LOG_CHANNEL_ID)
             if log_channel:
-                log = discord.Embed(title="Лог конвертации", color=0x3498db, timestamp=datetime.now(timezone.utc))
+                log = discord.Embed(title="Лог конвертации:", color=0x3498db, timestamp=datetime.now(timezone.utc))
                 log.add_field(name="Пользователь", value=str(interaction.user), inline=False)
                 log.add_field(name="Канал", value=interaction.channel.mention, inline=False)
                 log.add_field(name="Сумма (₽)", value=f"{format_with_dots(raw_clean)}₽", inline=True)
+                log.add_field(name="Округлено (₽)", value=f"{format_with_dots(adjusted)}₽", inline=True)
+                log.add_field(name="Курс ($)", value=f"{format_with_dots(rate)}$", inline=True)
+                log.add_field(name="Результат ($)", value=f"{format_with_dots(result)}$", inline=True)
+                log.add_field(name="Комиссия 1% + 5% ($)", value=f"{format_with_dots(commission_1)}$ + {format_with_dots(commission_5)}$", inline=True)
                 log.add_field(name="Итоговая сумма ($)", value=f"{format_with_dots(total)}$", inline=True)
                 await log_channel.send(embed=log)
 
         except ValueError:
             await interaction.response.send_message("Ошибка: введите корректное число!", ephemeral=True)
 
-class SellerModal(ui.Modal, title="Конвертация для продавцов"):
+class SellerConvertModal(ui.Modal, title="Конвертация для продавцов"):
     amount = ui.TextInput(label="Сумма (₽)", placeholder="Введите число")
 
     async def on_submit(self, interaction: discord.Interaction):
-        if not interaction.user.roles or any(role.id == 1347656051331174490 for role in interaction.user.roles):
-            return await interaction.response.send_message("У вас нет доступа к этой функции.", ephemeral=True)
+        user_role_ids = {role.id for role in interaction.user.roles}
+        if not user_role_ids.intersection(ALLOWED_SELLER_ROLE_IDS):
+            await interaction.response.send_message("❌ У вас нет доступа к этой функции.", ephemeral=True)
+            return
 
         try:
             raw_amount = float(self.amount.value)
             adjusted = adjust_amount(raw_amount)
             rate = get_rate(adjusted)
             result = adjusted * rate
-            commission_total = int(result * 0.10)
+            commission_10 = int(result * 0.10)
             raw_clean = int(raw_amount) if raw_amount.is_integer() else raw_amount
 
-            embed = discord.Embed(title="Конвертация для продавцов", color=0x95a5a6)
+            embed = discord.Embed(title="Итог конвертации для продавцов:", color=0xe67e22)
             embed.add_field(name="Сумма (₽)", value=f"{format_with_dots(raw_clean)}₽", inline=False)
             embed.add_field(name="Округлено (₽)", value=f"{format_with_dots(adjusted)}₽", inline=False)
             embed.add_field(name="Курс ($)", value=f"{format_with_dots(rate)}$", inline=False)
             embed.add_field(name="Результат ($)", value=f"{format_with_dots(result)}$", inline=False)
-            embed.add_field(name="Итоговая комиссия (10%)", value=f"{format_with_dots(commission_total)}$", inline=False)
-            embed.add_field(name="**Присылать комиссию на счёт -> 142153**", value="**Фотку отправленной комиссии отправьте в закрытый тикет**", inline=False)
+            embed.add_field(name="**Итоговая комиссия (10%)**", value=f"**{format_with_dots(commission_10)}$**", inline=False)
+            embed.add_field(name="Присылать комиссию на счёт -> 142153", value="Фотку отправленной комиссии отправьте в закрытый тикет", inline=False)
+
             await interaction.response.send_message(embed=embed, ephemeral=True)
 
             log_channel = interaction.guild.get_channel(LOG_CHANNEL_ID)
             if log_channel:
-                log = discord.Embed(title="Лог конвертации (продавцы)", color=0x7f8c8d, timestamp=datetime.now(timezone.utc))
+                log = discord.Embed(title="Лог конвертации для продавцов:", color=0xf39c12, timestamp=datetime.now(timezone.utc))
                 log.add_field(name="Пользователь", value=str(interaction.user), inline=False)
                 log.add_field(name="Канал", value=interaction.channel.mention, inline=False)
                 log.add_field(name="Сумма (₽)", value=f"{format_with_dots(raw_clean)}₽", inline=True)
-                log.add_field(name="Комиссия (10%)", value=f"{format_with_dots(commission_total)}$", inline=True)
+                log.add_field(name="Округлено (₽)", value=f"{format_with_dots(adjusted)}₽", inline=True)
+                log.add_field(name="Курс ($)", value=f"{format_with_dots(rate)}$", inline=True)
+                log.add_field(name="Результат ($)", value=f"{format_with_dots(result)}$", inline=True)
+                log.add_field(name="Итоговая комиссия (10%)", value=f"{format_with_dots(commission_10)}$", inline=True)
                 await log_channel.send(embed=log)
 
         except ValueError:
@@ -136,90 +127,40 @@ class SellerModal(ui.Modal, title="Конвертация для продавц�
 
 class ConvertButton(ui.Button):
     def __init__(self):
-        super().__init__(label="Конвертировать", style=discord.ButtonStyle.primary)
+        super().__init__(label="Конвертировать", style=discord.ButtonStyle.primary, custom_id="convert_btn")
 
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.send_modal(ConvertModal())
 
-class SellerButton(ui.Button):
+class SellerConvertButton(ui.Button):
     def __init__(self):
-        super().__init__(label="Конвертация для продавцов", style=discord.ButtonStyle.secondary)
+        super().__init__(label="Конвертация для продавцов", style=discord.ButtonStyle.secondary, custom_id="seller_convert_btn")
 
     async def callback(self, interaction: discord.Interaction):
-        if not interaction.user.roles or any(role.id == 1347656051331174490 for role in interaction.user.roles):
-            return await interaction.response.send_message("У вас нет доступа к этой функции.", ephemeral=True)
-        await interaction.response.send_modal(SellerModal())
+        user_role_ids = {role.id for role in interaction.user.roles}
+        if not user_role_ids.intersection(ALLOWED_SELLER_ROLE_IDS):
+            await interaction.response.send_message("❌ У вас нет доступа к этой функции.", ephemeral=True)
+            return
+        await interaction.response.send_modal(SellerConvertModal())
 
 class AdditionalButton(ui.Button):
     def __init__(self):
-        super().__init__(label="Дополнительно", style=discord.ButtonStyle.secondary)
+        super().__init__(label="Дополнительно", style=discord.ButtonStyle.secondary, custom_id="additional_btn")
 
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.send_message(
-            "```Другое:\n\n"
-            "Приоритетная очередь в тикете -> 300.000$ (< 1.500₽), 700.000$ (> 1.500₽)\n"
-            "Разбан в дискорде «ТП» -> 500.000$\n"
-            "Снятие чс-доната и т.д. -> 400.000$\n"
-            "Разбан в дискорде RPM -> цену узнавать у justlead```",
-            ephemeral=True
-        )
+        await interaction.response.send_message("Дополнительная информация...", ephemeral=True)
 
-class RatesView(ui.View):
+class ConversionPanel(ui.View):
     def __init__(self):
         super().__init__(timeout=None)
         self.add_item(ConvertButton())
-        self.add_item(SellerButton())
+        self.add_item(SellerConvertButton())
         self.add_item(AdditionalButton())
 
-intents = discord.Intents.all()
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(command_prefix="!")
 
-@bot.command(name="panelz")
-@commands.has_permissions(administrator=True)
-async def panelz(ctx):
-    await ctx.send(PANEL_TEXT, view=RatesView())
-    await ctx.message.delete()
+@bot.command()
+async def panel(ctx):
+    await ctx.send(PANEL_TEXT, view=ConversionPanel())
 
-@bot.command(name="panelzz")
-@commands.has_permissions(administrator=True)
-async def panelzz(ctx):
-    await ctx.send(OLD_PANEL_TEXT, view=RatesView())
-    await ctx.message.delete()
-
-@bot.event
-async def on_ready():
-    bot.add_view(RatesView())
-    print(f"✅ Бот {bot.user} запущен и готов к работе!")
-
-@bot.event
-async def on_guild_channel_create(channel):
-    if isinstance(channel, discord.TextChannel) and channel.category_id == TICKET_CATEGORY_ID:
-        await asyncio.sleep(1)
-        try:
-            async for msg in channel.history(limit=5):
-                if msg.author == bot.user and msg.content.startswith("**Курсы конвертации:**"):
-                    return
-            await channel.send(PANEL_TEXT, view=RatesView())
-        except Exception as e:
-            print(f"Ошибка при отправке панели: {e}")
-
-async def handle(request):
-    return web.Response(text="Бот работает!")
-
-async def run_webserver():
-    app = web.Application()
-    app.add_routes([web.get('/', handle)])
-    runner = web.AppRunner(app)
-    await runner.setup()
-    port = int(os.environ.get("PORT", 10000))
-    site = web.TCPSite(runner, '0.0.0.0', port)
-    await site.start()
-    print(f"🌐 Веб-сервер слушает на порту {port}")
-
-async def main():
-    await run_webserver()
-    print("🚀 Запускаю Discord-бота...")
-    await bot.start(TOKEN)
-
-if __name__ == "__main__":
-    asyncio.run(main())
+bot.run(TOKEN)
