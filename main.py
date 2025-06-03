@@ -72,9 +72,11 @@ class ConvertModal(ui.Modal, title="Конвертация"):
             adjusted = adjust_amount(raw_amount)
             rate = get_rate(adjusted)
             result = adjusted * rate
+
             commission_1 = int(result * 0.01)
             commission_5 = int(result * 0.05)
-            total = result + commission_1 + commission_5
+            total_sum = result + commission_1 + commission_5
+
             raw_clean = int(raw_amount) if raw_amount.is_integer() else raw_amount
 
             embed = discord.Embed(title="Итог конвертации:", color=0x2ecc71)
@@ -82,9 +84,9 @@ class ConvertModal(ui.Modal, title="Конвертация"):
             embed.add_field(name="Округлено (₽)", value=f"{format_with_dots(adjusted)}₽", inline=False)
             embed.add_field(name="Курс ($)", value=f"{format_with_dots(rate)}$", inline=False)
             embed.add_field(name="Результат ($ | ʊ)", value=f"{format_with_dots(result)}$", inline=False)
-            embed.add_field(name="Комиссия 1% ($)", value=f"{format_with_dots(commission_1)}$", inline=False)
-            embed.add_field(name="Комиссия 5% ($)", value=f"{format_with_dots(commission_5)}$", inline=False)
-            embed.add_field(name="**Итоговая сумма ($)**", value=f"**{format_with_dots(total)}$**", inline=False)
+            embed.add_field(name="Комиссия 1% + 5% ($)", value=f"{format_with_dots(commission_1)}$ + {format_with_dots(commission_5)}$", inline=False)
+            embed.add_field(name="**Итоговая сумма ($)**", value=f"**{format_with_dots(total_sum)}$**", inline=False)
+
             await interaction.response.send_message(embed=embed, ephemeral=True)
 
             log_channel = interaction.guild.get_channel(LOG_CHANNEL_ID)
@@ -96,9 +98,51 @@ class ConvertModal(ui.Modal, title="Конвертация"):
                 log.add_field(name="Округлено (₽)", value=f"{format_with_dots(adjusted)}₽", inline=True)
                 log.add_field(name="Курс ($)", value=f"{format_with_dots(rate)}$", inline=True)
                 log.add_field(name="Результат ($ | ʊ)", value=f"{format_with_dots(result)}$", inline=True)
-                log.add_field(name="Комиссия 1% ($)", value=f"{format_with_dots(commission_1)}$", inline=True)
-                log.add_field(name="Комиссия 5% ($)", value=f"{format_with_dots(commission_5)}$", inline=True)
-                log.add_field(name="Итоговая сумма ($)", value=f"{format_with_dots(total)}$", inline=True)
+                log.add_field(name="Комиссия 1% + 5% ($)", value=f"{format_with_dots(commission_1)}$ + {format_with_dots(commission_5)}$", inline=True)
+                log.add_field(name="Итоговая сумма ($)", value=f"{format_with_dots(total_sum)}$", inline=True)
+                await log_channel.send(embed=log)
+
+        except ValueError:
+            await interaction.response.send_message("Ошибка: введите корректное число!", ephemeral=True)
+
+class SellerConvertModal(ui.Modal, title="Конвертация для продавцов"):
+    amount = ui.TextInput(label="Сумма (₽)", placeholder="Введите число")
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            raw_amount = float(self.amount.value)
+            adjusted = adjust_amount(raw_amount)
+            rate = get_rate(adjusted)
+            result = adjusted * rate
+
+            commission_1 = int(result * 0.01)
+            commission_5 = int(result * 0.05)
+            commission_10 = int(result * 0.10)
+
+            raw_clean = int(raw_amount) if raw_amount.is_integer() else raw_amount
+
+            embed = discord.Embed(title="Итог конвертации для продавцов:", color=0xe67e22)
+            embed.add_field(name="Сумма (₽)", value=f"{format_with_dots(raw_clean)}₽", inline=False)
+            embed.add_field(name="Округлено (₽)", value=f"{format_with_dots(adjusted)}₽", inline=False)
+            embed.add_field(name="Курс ($)", value=f"{format_with_dots(rate)}$", inline=False)
+            embed.add_field(name="Результат ($ | ʊ)", value=f"{format_with_dots(result)}$", inline=False)
+            embed.add_field(name="Комиссия 1% + 5% ($)", value=f"{format_with_dots(commission_1)}$ + {format_with_dots(commission_5)}$", inline=False)
+            embed.add_field(name="Итоговая комиссия (10%)", value=f"{format_with_dots(commission_10)}$", inline=False)
+            embed.add_field(name="Присылать комиссию на счёт -> 142153\nФотографию отправленной комиссии отправьте в закрытый тикет", value="\u200b", inline=False)
+
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+
+            log_channel = interaction.guild.get_channel(LOG_CHANNEL_ID)
+            if log_channel:
+                log = discord.Embed(title="Лог конвертации для продавцов:", color=0xe67e22, timestamp=datetime.now(timezone.utc))
+                log.add_field(name="Пользователь", value=str(interaction.user), inline=False)
+                log.add_field(name="Канал", value=interaction.channel.mention, inline=False)
+                log.add_field(name="Сумма (₽)", value=f"{format_with_dots(raw_clean)}₽", inline=True)
+                log.add_field(name="Округлено (₽)", value=f"{format_with_dots(adjusted)}₽", inline=True)
+                log.add_field(name="Курс ($)", value=f"{format_with_dots(rate)}$", inline=True)
+                log.add_field(name="Результат ($ | ʊ)", value=f"{format_with_dots(result)}$", inline=True)
+                log.add_field(name="Комиссия 1% + 5% ($)", value=f"{format_with_dots(commission_1)}$ + {format_with_dots(commission_5)}$", inline=True)
+                log.add_field(name="Итоговая комиссия (10%)", value=f"{format_with_dots(commission_10)}$", inline=True)
                 await log_channel.send(embed=log)
 
         except ValueError:
@@ -110,6 +154,13 @@ class ConvertButton(ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.send_modal(ConvertModal())
+
+class SellerConvertButton(ui.Button):
+    def __init__(self):
+        super().__init__(label="Конвертировать для продавцов", style=discord.ButtonStyle.secondary, custom_id="seller_convert_btn")
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_modal(SellerConvertModal())
 
 class AdditionalButton(ui.Button):
     def __init__(self):
@@ -128,11 +179,9 @@ class AdditionalButton(ui.Button):
 class RatesView(ui.View):
     def __init__(self):
         super().__init__(timeout=None)
-        self.add_item(ConvertButton())
+        # Кнопка "Конвертировать для продавцов" идет первой, серого цвета
+        self.add_item(SellerConvertButton())
         self.add_item(AdditionalButton())
-
-intents = discord.Intents.all()
-bot = commands.Bot(command_prefix="!", intents=intents)
 
 @bot.command(name="panelz")
 @commands.has_permissions(administrator=True)
@@ -150,7 +199,7 @@ async def panelzz(ctx):
 
 @bot.event
 async def on_ready():
-    bot.add_view(RatesView())
+    bot.add_view(RatesView())  # Регистрация persistent view
     print(f"✅ Бот {bot.user} запущен и готов к работе!")
 
 @bot.event
@@ -176,13 +225,4 @@ async def run_webserver():
     await runner.setup()
     port = int(os.environ.get("PORT", 10000))
     site = web.TCPSite(runner, '0.0.0.0', port)
-    await site.start()
-    print(f"🌐 Веб-сервер слушает на порту {port}")
-
-async def main():
-    await run_webserver()
-    print("🚀 Запускаю Discord-бота...")
-    await bot.start(TOKEN)
-
-if __name__ == "__main__":
-    asyncio.run(main())
+    await site.start
