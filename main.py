@@ -142,7 +142,6 @@ class ConvertButton(ui.Button):
 
 class SellerConvertButton(ui.Button):
     def __init__(self):
-        # стиль такой же как у Дополнительно - secondary (серый)
         super().__init__(label="Конвертация для продавцов", style=discord.ButtonStyle.secondary, custom_id="seller_convert_btn")
 
     async def callback(self, interaction: discord.Interaction):
@@ -169,7 +168,6 @@ class AdditionalButton(ui.Button):
 class RatesView(ui.View):
     def __init__(self):
         super().__init__(timeout=None)
-        # Порядок кнопок: Конвертировать, Конвертация для продавцов, Дополнительно
         self.add_item(ConvertButton())
         self.add_item(SellerConvertButton())
         self.add_item(AdditionalButton())
@@ -177,7 +175,7 @@ class RatesView(ui.View):
 @bot.command(name="panelz")
 @commands.has_permissions(administrator=True)
 async def panelz(ctx):
-    # Удаляем команду пользователя сразу после вызова
+    # Удаляем сообщение с командой сразу после вызова
     await ctx.message.delete()
 
     panel_text = (
@@ -201,11 +199,11 @@ async def panelz(ctx):
 @bot.command(name="panelzz")
 @commands.has_permissions(administrator=True)
 async def panelzz(ctx):
-    # Удаляем команду пользователя сразу после вызова
+    # Удаляем сообщение с командой сразу после вызова
     await ctx.message.delete()
 
     panel_text = (
-        "**Курсы конвертации:**\n"
+        "**Курсы конвертации:**\n"  # жирный заголовок
         "Меньше 1.999 ₽ — 2.000 $\n"
         "От 2.000 ₽ до 3.999 ₽ — 2.500 $\n"
         "От 4.000 ₽ до 5.999 ₽ — 3.000 $\n"
