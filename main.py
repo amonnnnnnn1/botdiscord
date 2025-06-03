@@ -72,8 +72,9 @@ class ConvertModal(ui.Modal, title="Конвертация"):
             adjusted = adjust_amount(raw_amount)
             rate = get_rate(adjusted)
             result = adjusted * rate
-            commission = int(result * 0.01)
-            total = result + commission
+            commission_1 = int(result * 0.01)
+            commission_5 = int(result * 0.05)
+            total = result + commission_1 + commission_5
             raw_clean = int(raw_amount) if raw_amount.is_integer() else raw_amount
 
             embed = discord.Embed(title="Итог конвертации:", color=0x2ecc71)
@@ -81,7 +82,8 @@ class ConvertModal(ui.Modal, title="Конвертация"):
             embed.add_field(name="Округлено (₽)", value=f"{format_with_dots(adjusted)}₽", inline=False)
             embed.add_field(name="Курс ($)", value=f"{format_with_dots(rate)}$", inline=False)
             embed.add_field(name="Результат ($ | ʊ)", value=f"{format_with_dots(result)}$", inline=False)
-            embed.add_field(name="Комиссия 1% ($)", value=f"{format_with_dots(commission)}$", inline=False)
+            embed.add_field(name="Комиссия 1% ($)", value=f"{format_with_dots(commission_1)}$", inline=False)
+            embed.add_field(name="Комиссия 5% ($)", value=f"{format_with_dots(commission_5)}$", inline=False)
             embed.add_field(name="**Итоговая сумма ($)**", value=f"**{format_with_dots(total)}$**", inline=False)
             await interaction.response.send_message(embed=embed, ephemeral=True)
 
@@ -94,7 +96,8 @@ class ConvertModal(ui.Modal, title="Конвертация"):
                 log.add_field(name="Округлено (₽)", value=f"{format_with_dots(adjusted)}₽", inline=True)
                 log.add_field(name="Курс ($)", value=f"{format_with_dots(rate)}$", inline=True)
                 log.add_field(name="Результат ($ | ʊ)", value=f"{format_with_dots(result)}$", inline=True)
-                log.add_field(name="Комиссия 1% ($)", value=f"{format_with_dots(commission)}$", inline=True)
+                log.add_field(name="Комиссия 1% ($)", value=f"{format_with_dots(commission_1)}$", inline=True)
+                log.add_field(name="Комиссия 5% ($)", value=f"{format_with_dots(commission_5)}$", inline=True)
                 log.add_field(name="Итоговая сумма ($)", value=f"{format_with_dots(total)}$", inline=True)
                 await log_channel.send(embed=log)
 
@@ -147,7 +150,7 @@ async def panelzz(ctx):
 
 @bot.event
 async def on_ready():
-    bot.add_view(RatesView())  # 👈 Регистрация persistent view
+    bot.add_view(RatesView())
     print(f"✅ Бот {bot.user} запущен и готов к работе!")
 
 @bot.event
