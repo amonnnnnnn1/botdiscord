@@ -147,6 +147,7 @@ async def panelzz(ctx):
 
 @bot.event
 async def on_ready():
+    bot.add_view(RatesView())  # 👈 Регистрация persistent view
     print(f"✅ Бот {bot.user} запущен и готов к работе!")
 
 @bot.event
