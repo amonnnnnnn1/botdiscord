@@ -3,18 +3,11 @@ from discord import ui
 from discord.ext import commands
 from datetime import datetime, timezone
 import math
-import os
-import sys
-from dotenv import load_dotenv  # импорт dotenv
 
-load_dotenv()  # загрузка переменных из .env
+# Токен прописан напрямую, чтобы исключить проблемы с переменными окружения
+TOKEN = "MTM3NjY0MjQ1NDIyMDA0NjQ3Ng.GPyR1r.J--ryvfu-N0OO3KWOZLa_LlbPw7b8oslEGLdFg"
 
-TOKEN = os.getenv("DISCORD_TOKEN")
-LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID", "0"))
-
-if TOKEN is None:
-    print("Ошибка: Токен Discord не найден в переменных окружения! Проверь .env и настройку Discloud.")
-    sys.exit(1)
+LOG_CHANNEL_ID = 1347942863081832458  # можно так же прописать напрямую
 
 SELLER_ROLE_IDS = {
     1378693028415541363,
