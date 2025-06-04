@@ -1,9 +1,12 @@
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 import discord
 from discord import ui
 from discord.ext import commands
 from datetime import datetime, timezone
 import math
-import os
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID", "0"))
