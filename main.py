@@ -5,6 +5,9 @@ from datetime import datetime, timezone
 import math
 import os
 import sys
+from dotenv import load_dotenv  # импорт dotenv
+
+load_dotenv()  # загрузка переменных из .env
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID", "0"))
